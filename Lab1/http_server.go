@@ -4,22 +4,43 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 )
 
+const MAX_CONNECTIONS int = 10
+
 func main() {
-	ln, err := net.Listen("tcp", ":8080")
+
+	if len(os.Args) == 1 {
+		panic("No port provided")
+	}
+
+	port := os.Args[1]
+
+	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("Server started and listening on port " + port)
+	sem := make(chan struct{}, MAX_CONNECTIONS)
 
 	for {
+		sem <- struct{}{}
+
 		conn, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go handleConn(conn)
 
+		go func(c net.Conn) {
+			defer func() {
+				<-sem
+				fmt.Println("Connection closed")
+			}()
+
+			handleConn(c)
+		}(conn)
 	}
 }
 
@@ -28,8 +49,14 @@ func handleConn(c net.Conn) {
 
 	br := bufio.NewReader(c)
 
-	line, _ := br.ReadString('\n') // "GET / HTTP/1.1\r\n"
+	line, _ := br.ReadString('\n')
 	fmt.Println(line)
+
+	// TODO: Implement check for accepted file types (400 Bad Request)
+	// TODO: Implement check for valid http request
+	// TODO: Implement 404 if requested file doesn't exist
+	// TODO: Implement 501 if the method is not GET or POST
+	// TODO: Write tests
 
 	splitRequest := strings.Split(line, " ")
 	method, path := splitRequest[0], splitRequest[1]
