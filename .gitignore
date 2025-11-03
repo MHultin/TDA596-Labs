@@ -5,6 +5,7 @@
 *.dylib
 *.test
 *.out
+http_server
 
 # build dirs
 bin/
