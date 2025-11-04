@@ -1,4 +1,4 @@
-package main
+package lab1
 
 import (
 	"bufio"
@@ -66,41 +66,62 @@ func handleConn(c net.Conn) {
 
 	req, err := parseHTTPRequest(br)
 
-	fmt.Println(req.Method)
-	fmt.Println(req.RequestURI)
-
 	if err != nil {
-		panic(err)
+		sendBadRequest(c)
+		return
 	}
 
 	if !isAcceptedMethod(req.Method) {
-		sendError(c, "501", "501: Not implemented")
+		sendNotImplemented(c)
+		return
+	}
+	if !isAcceptedExtension(req.RequestURI) {
+		sendBadRequest(c)
+		return
 	}
 
-	if req.Method == "GET" {
-		if !isAcceptedExtension(req.RequestURI) {
-			sendError(c, "400", "400: Bad Request")
-		}
-
+	switch req.Method {
+	case "GET":
 		handleGetRequest(c, req.RequestURI)
-	}
-	if req.Method == "POST" {
-		if req.RequestURI != "/upload" {
-			sendError(c, "400", "400: Bad Request")
-		}
-
+	case "POST":
 		handlePostRequest(c, req)
 	}
 }
 
 func handlePostRequest(c net.Conn, req *http.Request) {
 	if req.Body == nil {
-		sendError(c, "400", "No body provided")
+		sendBadRequest(c)
+		return
 	}
+
+	splitUrl := strings.Split(req.RequestURI, "/")
+
+	if len(splitUrl) != 2 || splitUrl[1] == "" {
+		sendBadRequest(c)
+		return
+	}
+
+	fileName := splitUrl[1]
 
 	data, err := io.ReadAll((req.Body))
 
-	fmt.Printf(req.Body)
+	if err != nil {
+		sendError(c, "500", "500: Internal server error")
+		return
+	}
+
+	os.Chdir("public")
+
+	err = os.WriteFile(fileName, data, 0644)
+
+	if err != nil {
+		sendError(c, "500", "500: Internal server error")
+		return
+	}
+
+	os.Chdir("..")
+
+	sendOk(c)
 }
 
 func handleGetRequest(c net.Conn, path string) {
@@ -137,6 +158,18 @@ func sendResponse(c net.Conn, status string, body []byte, contentType string) {
 	fmt.Fprint(c, response)
 }
 
+func sendOk(c net.Conn) {
+	sendResponse(c, "200", []byte("ok"), "text/plain")
+}
+
+func sendBadRequest(c net.Conn) {
+	sendError(c, "400", "400: Bad Request")
+}
+
+func sendNotImplemented(c net.Conn) {
+	sendError(c, "501", "501: Not implemented")
+}
+
 func getFileBytes(path string) ([]byte, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -146,6 +179,7 @@ func getFileBytes(path string) ([]byte, error) {
 	p := filepath.Join(cwd, "public", path)
 
 	f, err := os.ReadFile(p)
+
 	if err != nil {
 		return nil, err
 	}
