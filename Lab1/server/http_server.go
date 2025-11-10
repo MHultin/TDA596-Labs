@@ -1,4 +1,4 @@
-package lab1
+package main
 
 import (
 	"bufio"
@@ -14,10 +14,19 @@ import (
 // TODO: Implement check for valid http request
 // TODO: Write tests
 
-const MAX_CONNECTIONS int = 10
+const maxConn int = 10
+
+var acceptedExtensions = map[string]string{
+	".html": "text/html",
+	".css":  "text/css",
+	".txt":  "text/plain",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+}
 
 func main() {
-
+	
 	if len(os.Args) == 1 {
 		panic("No port provided")
 	}
@@ -30,15 +39,14 @@ func main() {
 	}
 
 	fmt.Println("Server started and listening on port " + port)
-	sem := make(chan struct{}, MAX_CONNECTIONS)
+	sem := make(chan struct{}, maxConn)
 
 	for {
-		sem <- struct{}{}
-
 		conn, err := ln.Accept()
 		if err != nil {
 			continue
 		}
+		sem <- struct{}{}
 
 		go func(c net.Conn) {
 			defer func() {
@@ -50,42 +58,49 @@ func main() {
 	}
 }
 
-var acceptedExtensions = map[string]string{
-	".html": "text/html",
-	".css":  "text/css",
-	".txt":  "text/plain",
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif":  "image/gif",
-}
-
 func handleConn(c net.Conn) {
 	defer c.Close()
 
 	br := bufio.NewReader(c)
 
-	req, err := parseHTTPRequest(br)
+	req, err := parseHTTPRequest(br)	
 
 	if err != nil {
 		sendBadRequest(c)
 		return
 	}
 
-	if !isAcceptedMethod(req.Method) {
-		sendNotImplemented(c)
-		return
-	}
-	if !isAcceptedExtension(req.RequestURI) {
+	path := req.URL.Path
+	if path == "" {
 		sendBadRequest(c)
 		return
 	}
 
 	switch req.Method {
-	case "GET":
-		handleGetRequest(c, req.RequestURI)
-	case "POST":
+		
+	case http.MethodGet:
+		handleGetRequest(c, path)
+		
+	case http.MethodPost:
 		handlePostRequest(c, req)
+		
+	default:
+		sendNotImplemented(c)
 	}
+}
+
+func handleGetRequest(c net.Conn, path string) {
+	if !isAcceptedExtension(path) {
+		sendBadRequest(c)
+		return
+	}
+	data, err := getFileBytes(path)
+	if err != nil {
+		sendError(c, "404", fmt.Sprintf("404: %s not found", path))
+		return
+	}
+
+	sendResponse(c, "200", data, acceptedExtensions[filepath.Ext(path)])
 }
 
 func handlePostRequest(c net.Conn, req *http.Request) {
@@ -94,48 +109,51 @@ func handlePostRequest(c net.Conn, req *http.Request) {
 		return
 	}
 
-	splitUrl := strings.Split(req.RequestURI, "/")
-
-	if len(splitUrl) != 2 || splitUrl[1] == "" {
+	// convert the HTTP req into a multipart reader
+	mr, err := req.MultipartReader() // magic
+	if err != nil {
 		sendBadRequest(c)
 		return
 	}
 
-	fileName := splitUrl[1]
-
-	data, err := io.ReadAll((req.Body))
-
-	if err != nil {
-		sendError(c, "500", "500: Internal server error")
+	// only one file expected here. get first part
+	part, err := mr.NextPart() // magic
+	if err != nil || part.FileName() == "" {
+		sendBadRequest(c)
 		return
 	}
 
-	os.Chdir("public")
+	// ex: curl -F file=@test.txt  -> test.txt
+	fileName := filepath.Base(part.FileName())
 
-	err = os.WriteFile(fileName, data, 0644)
-
-	if err != nil {
-		sendError(c, "500", "500: Internal server error")
+	extension := strings.ToLower(filepath.Ext(fileName))
+	if !isAcceptedExtension(extension) {
+		sendBadRequest(c)
 		return
 	}
 
-	os.Chdir("..")
+	dst, err := os.Create(filepath.Join("public", fileName))
+	if err != nil {
+		sendBadRequest(c)
+		return
+	}
 
+	// copy stream directly. does NOT buffer entire file into memory.
+	// part is like a stream reader of file data
+	_, err = io.Copy(dst, part)
+	dst.Close()
+
+	if err != nil {
+		sendError(c, "500", "500: Internal server error") // change?
+		return
+	}
 	sendOk(c)
 }
 
-func handleGetRequest(c net.Conn, path string) {
-	f, err := getFileBytes(path)
-	if err != nil {
-		sendError(c, "404", fmt.Sprintf("404: %s not found", path))
-	}
-
-	sendResponse(c, "200", f, acceptedExtensions[filepath.Ext(path)])
-}
-
 func isAcceptedExtension(path string) bool {
-	extension := strings.ToLower(filepath.Ext(path))
-	return !(extension == "" || acceptedExtensions[extension] == "")
+	ext := strings.ToLower(filepath.Ext(path))
+	_, ok := acceptedExtensions[ext]
+	return ok
 }
 
 func sendError(c net.Conn, status string, message string) {
@@ -178,17 +196,13 @@ func getFileBytes(path string) ([]byte, error) {
 
 	p := filepath.Join(cwd, "public", path)
 
-	f, err := os.ReadFile(p)
+	data, err := os.ReadFile(p)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return f, nil
-}
-
-func isAcceptedMethod(method string) bool {
-	return method == "GET" || method == "POST"
+	return data, nil
 }
 
 func parseHTTPRequest(br *bufio.Reader) (*http.Request, error) {
