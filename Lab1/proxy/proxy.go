@@ -3,17 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
-	"io"
 )
 
 const maxConn int = 10
 
-func main() {
 
-	if len(os.Args) == 2 {
+func main() {
+	if len(os.Args) == 1 {
 		panic("No port provided")
 	}
 	proxyPort := os.Args[1]
@@ -34,8 +34,8 @@ func main() {
 		sem <- struct{}{}
 
 		go func(c net.Conn) {
-			defer func() { 
-				<-sem 
+			defer func() {
+				<-sem
 			}()
 
 			handleConn(c)
@@ -67,29 +67,32 @@ func handleConn(c net.Conn) {
 		sendError(c, "502", "502: Bad Gateway")
 		return
 	}
+
 	defer server.Close()
 
-	// forward a minimal GET to the origin
 	bw := bufio.NewWriter(server)
 	fmt.Fprintf(bw, "GET %s HTTP/1.1\r\n", path)
-	// Host header: use the origin host:port
 	fmt.Fprintf(bw, "Host: %s\r\n", req.Host)
-	// keep it simple; close semantics
-	fmt.Fprintf(bw, "Connection: close\r\n")
+	fmt.Fprint(bw, "Connection: close\r\n\r\n")
 
-	// end headers
-	bw.WriteString("\r\n")
-
-	if err := bw.Flush(); err != nil {
+	err = bw.Flush()
+	if err != nil {
 		sendError(c, "502", "502: Bad Gateway")
-		return
 	}
 
-	// stream the origin response back to the client (no parsing/modification)
 	_, err = io.Copy(c, server)
 	if err != nil {
 		sendError(c, "500", "500 Internal server error")
 	}
+}
+
+func sendMinimalGET(c net.Conn, req *http.Request) error {
+	request := fmt.Sprintf("GET %s HTTP/1.1\r\n", req.RequestURI)
+	request += fmt.Sprintf("Host: %s\r\n", req.Host)
+
+	_, err := fmt.Fprintf(c, request)
+
+	return err
 }
 
 func sendError(c net.Conn, status string, message string) {
@@ -98,7 +101,7 @@ func sendError(c net.Conn, status string, message string) {
 	response += fmt.Sprintf("Content-Length: %d\r\n", len(message))
 	response += "\r\n"
 	response += message + "\n"
-	
+
 	fmt.Fprint(c, response)
 }
 
