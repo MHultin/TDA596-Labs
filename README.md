@@ -4,8 +4,9 @@
 
 * HTTP server
   - HTTP GET
-  - HTTP PUT
-* Proxy for handling the connection between client and server. 
+  - HTTP POST
+* Proxy for handling the connection between client and server.
+  - Can only handle GET
 
 
 ## How To Use
@@ -44,6 +45,7 @@ This software uses the following open source packages:
 ## You may also like...
 
 ## License
+
 
 
 
