@@ -29,7 +29,7 @@ $ go run http_server.go [port]
 ```
 
 > **Note**
-An example of how to send a POST or GET request using the proxy.
+An example of how to send a GET request using the proxy.
 ```bash
 $ curl -X GET <server_ip>:<server_port>/<file> -x <proxy_ip>:<proxy_port>
 ```
@@ -44,6 +44,7 @@ This software uses the following open source packages:
 ## You may also like...
 
 ## License
+
 
 
 
