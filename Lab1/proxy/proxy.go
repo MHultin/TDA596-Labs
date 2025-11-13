@@ -11,7 +11,6 @@ import (
 
 const maxConn int = 10
 
-
 func main() {
 	if len(os.Args) == 1 {
 		panic("No port provided")
@@ -60,8 +59,6 @@ func handleConn(c net.Conn) {
 		return
 	}
 
-	path := req.URL.EscapedPath()
-
 	server, err := net.Dial("tcp", req.Host)
 	if err != nil {
 		sendError(c, "502", "502: Bad Gateway")
@@ -70,12 +67,7 @@ func handleConn(c net.Conn) {
 
 	defer server.Close()
 
-	bw := bufio.NewWriter(server)
-	fmt.Fprintf(bw, "GET %s HTTP/1.1\r\n", path)
-	fmt.Fprintf(bw, "Host: %s\r\n", req.Host)
-	fmt.Fprint(bw, "Connection: close\r\n\r\n")
-
-	err = bw.Flush()
+	err = sendMinimalGET(c, req)
 	if err != nil {
 		sendError(c, "502", "502: Bad Gateway")
 	}
@@ -89,6 +81,7 @@ func handleConn(c net.Conn) {
 func sendMinimalGET(c net.Conn, req *http.Request) error {
 	request := fmt.Sprintf("GET %s HTTP/1.1\r\n", req.RequestURI)
 	request += fmt.Sprintf("Host: %s\r\n", req.Host)
+	request += "Connection: close\r\n\r\n"
 
 	_, err := fmt.Fprintf(c, request)
 
