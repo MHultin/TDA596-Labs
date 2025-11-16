@@ -67,7 +67,7 @@ func handleConn(c net.Conn) {
 
 	defer server.Close()
 
-	err = sendMinimalGET(c, req)
+	err = sendMinimalGET(server, req)
 	if err != nil {
 		sendError(c, "502", "502: Bad Gateway")
 	}

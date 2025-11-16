@@ -1,5 +1,4 @@
 FROM golang:latest as builder
-
 WORKDIR /build
 COPY . .
 RUN CGO_ENABLED=0 go build -o ./main
@@ -7,6 +6,5 @@ RUN CGO_ENABLED=0 go build -o ./main
 FROM alpine
 WORKDIR /app
 COPY --from=builder /build/main ./main
-COPY --from=builder /build/public ./public
-ENV PORT=80
+ENV PORT=8080
 ENTRYPOINT ./main $PORT

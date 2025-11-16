@@ -26,7 +26,7 @@ var acceptedExtensions = map[string]string{
 func main() {
 
 	// check if server started with required arguments
-	if len(os.Args) == 1 {
+	if !(len(os.Args) > 1) {
 		panic("No port provided")
 	}
 
@@ -187,8 +187,7 @@ func sendError(c net.Conn, status string, message string) {
 func sendResponse(c net.Conn, status string, body []byte, contentType string) {
 	response := fmt.Sprintf("HTTP/1.1 %s\r\n", status)
 	response += fmt.Sprintf("Content-Type: %s\r\n", contentType)
-	response += fmt.Sprintf("Content-Length: %d\r\n", len(body))
-	response += "\r\n"
+	response += fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
 	response += string(body)
 
 	fmt.Fprint(c, response)
