@@ -12,7 +12,7 @@ import (
 const maxConn int = 10
 
 func main() {
-	if len(os.Args) == 1 {
+	if !(len(os.Args) > 1) {
 		panic("No port provided")
 	}
 	proxyPort := os.Args[1]
@@ -83,7 +83,7 @@ func sendMinimalGET(c net.Conn, req *http.Request) error {
 	request += fmt.Sprintf("Host: %s\r\n", req.Host)
 	request += "Connection: close\r\n\r\n"
 
-	_, err := fmt.Fprintf(c, request)
+	_, err := fmt.Fprintf(c, "%s", request)
 
 	return err
 }

@@ -176,8 +176,7 @@ func isAcceptedExtension(path string) bool {
 func sendError(c net.Conn, status string, message string) {
 	response := fmt.Sprintf("HTTP/1.1 %s\r\n", status)
 	response += "Content-Type: text/plain\r\n"
-	response += fmt.Sprintf("Content-Length: %d\r\n", len(message))
-	response += "\r\n"
+	response += fmt.Sprintf("Content-Length: %d\r\n\r\n", len(message))
 	response += message + "\n"
 
 	fmt.Fprint(c, response)
