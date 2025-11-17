@@ -26,7 +26,7 @@ var acceptedExtensions = map[string]string{
 func main() {
 
 	// check if server started with required arguments
-	if !(len(os.Args) > 1) {
+	if (len(os.Args) <= 1) {
 		panic("No port provided")
 	}
 
